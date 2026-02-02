@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VoxTone - الراوي الذكي</title>
+    <style>
+        /* --- التصميم الفضائي (Antigravity) --- */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at center, #0f2027, #203a43, #2c5364);
+            color: white;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0px);
+            }
+
+            50% {
+                transform: translateY(-15px);
+            }
+
+            100% {
+                transform: translateY(0px);
+            }
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 64, 129, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 20px rgba(255, 64, 129, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 64, 129, 0);
+            }
+        }
+
+        .container {
+            position: relative;
+            width: 100%;
+            max-width: 450px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .orb {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, #ff00cc, #333399);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 45px;
+            cursor: pointer;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+            animation: float 4s ease-in-out infinite;
+            z-index: 20;
+            transition: 0.3s;
+            margin-bottom: -40px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .orb:active {
+            transform: scale(0.95);
+        }
+
+        .orb.speaking {
+            animation: pulse 1.5s infinite;
+            background: linear-gradient(135deg, #ff4081, #ff9100);
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 60px 25px 25px 25px;
+            border-radius: 30px;
+            width: 90%;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+        }
+
+        textarea {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 15px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            font-size: 18px;
+            resize: none;
+            outline: none;
+            box-sizing: border-box;
+            height: 120px;
+            font-family: inherit;
+        }
+
+        .tags {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .tag {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            color: #ddd;
+            transition: 0.2s;
+        }
+
+        .tag:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-2px);
+        }
+
+        #statusLog {
+            font-size: 13px;
+            margin-top: 15px;
+            min-height: 20px;
+            font-weight: bold;
+            opacity: 0.8;
+            direction: ltr;
+        }
+
+        .error {
+            color: #ff6b6b;
+        }
+
+        .success {
+            color: #51cf66;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div id="orb" class="orb" onclick="handleOrbClick()">🎙️</div>
+
+        <div class="glass-panel">
+            <div class="tags">
+                <button class="tag" onclick="insertTag('[ضحك]')">😄 ضحك</button>
+                <button class="tag" onclick="insertTag('[بكاء]')">😢 بكاء</button>
+                <button class="tag" onclick="insertTag('[تصفيق]')">👏 تصفيق</button>
+            </div>
+
+            <textarea id="textInput" placeholder="اكتب هنا...">[ضحك] مرحباً، أنا جاهز!</textarea>
+
+            <div id="statusLog" class="success">جاهز للعمل</div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. الإعدادات ---
+        const statusLog = document.getElementById('statusLog');
+        const orb = document.getElementById('orb');
+        const textInput = document.getElementById('textInput');
+        let isSpeaking = false;
+        let voices = [];
+        let synth = window.speechSynthesis;
+
+        // تعديل الروابط لتكون ملفات محلية (يجب رفع الملفات على GitHub)
+        // ./ يعني الملف موجود في نفس المجلد
+        // تعديل الروابط لتكون ملفات محلية
+        const sounds = {
+            '[ضحك]': './Laughter.ogg',
+            '[بكاء]': './Cry_of_woman.ogg',
+            '[تصفيق]': './Clapping_hurray_(cropped).oga'
+        };
+
+        const voiceSettings = {
+            'default': { rate: 1.0, pitch: 1.0 },
+            '[ضحك]': { rate: 1.2, pitch: 1.3 },
+            '[بكاء]': { rate: 0.8, pitch: 0.6 },
+            '[تصفيق]': { rate: 1.1, pitch: 1.2 }
+        };
+
+        function updateStatus(msg, type = 'normal') {
+            statusLog.textContent = msg;
+            statusLog.className = type;
+        }
+
+        function insertTag(tag) {
+            textInput.value += ' ' + tag + ' ';
+        }
+
+        // تحميل أصوات النظام
+        function loadSystemVoices() {
+            voices = synth.getVoices();
+            if (voices.length > 0) {
+                // محاولة العثور على صوت عربي
+                const arVoice = voices.find(v => v.lang.includes('ar'));
+                if (arVoice) {
+                    updateStatus(`✅ الأصوات جاهزة (الصوت العربي: ${arVoice.name})`, "success");
+                } else {
+                    updateStatus("✅ الأصوات جاهزة (لا يوجد صوت عربي)", "normal");
+                    console.warn("No Arabic voice found. Available voices:", voices.map(v => `${v.name} (${v.lang})`));
+                }
+            } else {
+                setTimeout(loadSystemVoices, 300);
+            }
+        }
+        loadSystemVoices();
+        if (synth.onvoiceschanged !== undefined) {
+            synth.onvoiceschanged = loadSystemVoices;
+        }
+
+        // --- 2. المحرك الصوتي ---
+
+        function handleOrbClick() {
+            if (isSpeaking) {
+                stopStory();
+                return;
+            }
+
+            // فك قفل الصوت فوراً
+            synth.cancel();
+            synth.resume();
+            const unlock = new SpeechSynthesisUtterance(' ');
+            unlock.volume = 0.1;
+            synth.speak(unlock);
+
+            startStory();
+        }
+
+        function playSoundEffect(url) {
+            return new Promise(resolve => {
+                updateStatus("🎵 تشغيل مؤثر...");
+
+                const audio = new Audio(url);
+
+                // مؤقت الطوارئ
+                const safetyTimer = setTimeout(() => {
+                    updateStatus("⚠️ الملف غير موجود - تخطي", "error");
+                    resolve();
+                }, 1000); // ثانية واحدة فقط
+
+                audio.onended = () => {
+                    clearTimeout(safetyTimer);
+                    resolve();
+                };
+
+                audio.onerror = (e) => {
+                    clearTimeout(safetyTimer);
+                    // رسالة خطأ واضحة
+                    updateStatus("❌ لم يتم العثور على الملف الصوتي في GitHub", "error");
+                    console.error("Missing file:", url);
+                    resolve();
+                };
+
+                audio.play().catch(e => {
+                    clearTimeout(safetyTimer);
+                    resolve();
+                });
+            });
+        }
+
+        function speakSegment(text, config) {
+            return new Promise(resolve => {
+                if (!text.trim()) { resolve(); return; }
+
+                updateStatus(`🗣️ يقرأ: ${text.substring(0, 15)}...`);
+
+                const u = new SpeechSynthesisUtterance(text);
+                u.rate = config.rate;
+                u.pitch = config.pitch;
+
+                const voice = voices.find(v => v.lang.includes('ar'));
+                if (voice) u.voice = voice;
+
+                u.onend = resolve;
+                u.onerror = resolve;
+
+                synth.speak(u);
+            });
+        }
+
+        async function startStory() {
+            const text = textInput.value;
+            if (!text) { updateStatus("اكتب نصاً أولاً!", "error"); return; }
+
+            isSpeaking = true;
+            orb.classList.add('speaking');
+            orb.innerHTML = "🔊";
+
+            const parts = text.split(/(\[.*?\])/g);
+            let currentConfig = voiceSettings['default'];
+
+            for (let part of parts) {
+                if (!isSpeaking) break;
+                part = part.trim();
+                if (!part) continue;
+
+                if (sounds[part]) {
+                    await playSoundEffect(sounds[part]);
+                    if (voiceSettings[part]) currentConfig = voiceSettings[part];
+                } else {
+                    await speakSegment(part, currentConfig);
+                }
+            }
+
+            stopStory();
+        }
+
+        function stopStory() {
+            isSpeaking = false;
+            synth.cancel();
+            orb.classList.remove('speaking');
+            orb.innerHTML = "🎙️";
+            updateStatus("انتهى العرض", "success");
+        }
+    </script>
+</body>
+
+</html>
